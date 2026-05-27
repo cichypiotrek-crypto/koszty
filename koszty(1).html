@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Koszty">
+<title>Koszty</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { font-family:'Inter',sans-serif; background:#F8F9FB; color:#1a1a1a; min-height:100vh; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+  .fade { animation: fadeIn 0.4s ease-out both; }
+
+  .card {
+    background:#fff; border-radius:16px; padding:20px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+  }
+
+  .field {
+    width:100%; padding:14px 16px; border-radius:12px;
+    border:1.5px solid #EAEDF0; background:#FAFBFC; color:#1a1a1a;
+    font-family:'Inter',sans-serif; font-size:15px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .field:focus { outline:none; border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,0.1); background:#fff; }
+  .field::placeholder { color:#C0C6CF; }
+
+  .type-btn {
+    padding:14px 8px; border-radius:14px; border:none; cursor:pointer;
+    font-family:'Inter',sans-serif; font-size:13px; font-weight:600;
+    transition: all 0.2s; position:relative;
+  }
+  .type-btn:active { transform:scale(0.96); }
+
+  .cat-pill {
+    padding:8px 14px; border-radius:10px; border:none; cursor:pointer;
+    font-family:'Inter',sans-serif; font-size:13px; font-weight:500;
+    transition: all 0.15s;
+  }
+  .cat-pill:active { transform:scale(0.95); }
+
+  .submit-btn {
+    width:100%; padding:16px; border-radius:14px; border:none;
+    color:#fff; font-weight:700; font-size:16px; cursor:pointer;
+    font-family:'Inter',sans-serif; transition: all 0.2s;
+    letter-spacing:-0.3px;
+  }
+  .submit-btn:active { transform:scale(0.98); }
+  .submit-btn:disabled { opacity:0.5; cursor:wait; }
+
+  .toast {
+    margin-top:12px; padding:12px 16px; border-radius:12px;
+    font-size:14px; font-weight:600; text-align:center;
+  }
+
+  .history-row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:12px 14px; border-radius:12px; margin-bottom:5px;
+    background:#FAFBFC; border:1px solid #F0F2F4;
+  }
+
+  .tag {
+    font-size:10px; color:#fff; font-weight:700;
+    padding:3px 8px; border-radius:6px;
+    text-transform:uppercase; letter-spacing:0.3px;
+    white-space:nowrap;
+  }
+
+  .config-toggle {
+    width:36px; height:36px; border-radius:10px;
+    border:1.5px solid #EAEDF0; background:#fff;
+    font-size:14px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  #photo-preview { position:relative; border-radius:14px; overflow:hidden; display:none; }
+  #photo-preview img { width:100%; max-height:160px; object-fit:cover; }
+  #photo-preview button {
+    position:absolute; top:8px; right:8px; width:28px; height:28px;
+    border-radius:8px; border:none; background:rgba(0,0,0,0.5);
+    color:#fff; font-size:14px; cursor:pointer; backdrop-filter:blur(4px);
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  .overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,0.3);
+    display:none; align-items:center; justify-content:center;
+    z-index:100; padding:16px; backdrop-filter:blur(8px);
+  }
+</style>
+</head>
+<body>
+
+<div id="app" style="max-width:440px;margin:0 auto;padding:16px 16px 60px">
+
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px" class="fade">
+    <div>
+      <h1 style="font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#1a1a1a">
+        koszty<span id="dot" style="color:#3B82F6">.</span>
+      </h1>
+      <p style="font-size:11px;color:#A0A7B4;font-weight:500;letter-spacing:0.5px;margin-top:1px">Piotr & Anna</p>
+    </div>
+    <button class="config-toggle" onclick="toggleConfig()">⚙️</button>
+  </div>
+
+  <!-- Config (hidden) -->
+  <div id="config-panel" class="card" style="display:none;margin-bottom:16px;padding:16px 18px">
+    <div style="margin-bottom:12px">
+      <label style="font-size:11px;color:#A0A7B4;font-weight:600;letter-spacing:0.5px">URL APPS SCRIPT</label>
+      <input id="inp-url" type="url" class="field" placeholder="https://script.google.com/macros/s/..." style="margin-top:5px;font-size:12px" oninput="saveConfig()">
+    </div>
+    <div>
+      <label style="font-size:11px;color:#A0A7B4;font-weight:600;letter-spacing:0.5px">🔒 HASŁO</label>
+      <input id="inp-secret" type="password" class="field" placeholder="••••••••" style="margin-top:5px" oninput="saveConfig()">
+    </div>
+  </div>
+
+  <!-- Rodzaj -->
+  <div class="card fade" style="margin-bottom:12px;padding:16px">
+    <div id="types-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+  </div>
+
+  <!-- Kwota + kategoria + opis + paragon -->
+  <div class="card fade" style="margin-bottom:12px;padding:20px">
+
+    <!-- Kwota -->
+    <div style="margin-bottom:16px">
+      <label style="font-size:11px;color:#A0A7B4;font-weight:600;letter-spacing:0.5px">KWOTA</label>
+      <div style="position:relative;margin-top:6px">
+        <input id="inp-amount" type="number" inputmode="decimal" class="field" placeholder="0.00"
+          style="font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;padding:18px 50px 18px 18px;text-align:left;letter-spacing:-1px">
+        <span style="position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:16px;color:#C0C6CF;font-weight:600">zł</span>
+      </div>
+    </div>
+
+    <!-- Kategoria -->
+    <div style="margin-bottom:16px">
+      <label style="font-size:11px;color:#A0A7B4;font-weight:600;letter-spacing:0.5px">KATEGORIA</label>
+      <div id="cats-wrap" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+      <input id="inp-custom-cat" type="text" class="field" placeholder="wpisz kategorię..." style="display:none;margin-top:8px;font-size:13px">
+    </div>
+
+    <!-- Opis -->
+    <div style="margin-bottom:16px">
+      <label style="font-size:11px;color:#A0A7B4;font-weight:600;letter-spacing:0.5px">OPIS</label>
+      <input id="inp-desc" type="text" class="field" placeholder="np. Biedronka, allegro..." style="margin-top:6px">
+    </div>
+
+    <!-- Paragon -->
+    <div>
+      <input id="file-input" type="file" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(this)">
+      <button id="photo-btn" onclick="document.getElementById('file-input').click()"
+        style="width:100%;padding:12px;border-radius:12px;border:1.5px dashed #DEE2E8;background:#FAFBFC;color:#A0A7B4;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:500">
+        📸 paragon
+      </button>
+      <div id="photo-preview">
+        <img id="photo-img" src="" alt="">
+        <button onclick="clearPhoto()">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Submit -->
+  <button id="btn-submit" class="submit-btn fade" onclick="handleSend()" style="background:#3B82F6;box-shadow:0 6px 24px rgba(59,130,246,0.3)">
+    dodaj →
+  </button>
+
+  <!-- Toast -->
+  <div id="feedback" class="toast" style="display:none"></div>
+
+  <!-- History -->
+  <div id="history-section" style="display:none;margin-top:24px">
+    <p style="font-size:10px;color:#C0C6CF;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:10px">ostatnie wpisy</p>
+    <div id="history-list"></div>
+  </div>
+</div>
+
+<script>
+const TYPES = [
+  { id:"piotr_wspolne", label:"Piotr wspólne", short:"wspólne", who:"Piotr", color:"#3B82F6" },
+  { id:"piotr_dla_ania", label:"Piotr → Anna", short:"→ Anna", who:"Piotr", color:"#F97316" },
+  { id:"ania_wspolne", label:"Anna wspólne", short:"wspólne", who:"Anna", color:"#8B5CF6" },
+  { id:"ania_dla_piotr", label:"Anna → Piotr", short:"→ Piotr", who:"Anna", color:"#EC4899" },
+];
+
+const CATEGORIES = [
+  {id:"czynsz",icon:"🏠"},{id:"prąd",icon:"⚡"},{id:"internet",icon:"📡"},{id:"port",icon:"📱"},
+  {id:"zdrowie",icon:"💊"},{id:"jedzenie zdrowe",icon:"🥗"},{id:"jedzenie śmieci",icon:"🍕"},
+  {id:"jedzenie knajpa",icon:"🍽️"},{id:"kultura",icon:"🎭"},{id:"kosmetyki",icon:"💄"},
+  {id:"chemia",icon:"🧴"},{id:"benzyna",icon:"⛽"},{id:"noclegi",icon:"🛏️"},
+];
+
+let state = { activeType:"piotr_wspolne", category:"", photo:null, history:[], catUsage:{} };
+
+function getActive() { return TYPES.find(t=>t.id===state.activeType); }
+function getColor() { return getActive()?.color||"#3B82F6"; }
+function todayStr() {
+  const d=new Date();
+  return `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()}`;
+}
+
+// Config
+function saveConfig() {
+  localStorage.setItem("koszty_cfg", JSON.stringify({
+    url:document.getElementById("inp-url").value,
+    secret:document.getElementById("inp-secret").value
+  }));
+}
+function loadConfig() {
+  try {
+    const c=JSON.parse(localStorage.getItem("koszty_cfg")||"{}");
+    if(c.url) document.getElementById("inp-url").value=c.url;
+    if(c.secret) document.getElementById("inp-secret").value=c.secret;
+    if(c.url) fetchCounts(c.url);
+  } catch(e){}
+  try {
+    state.history=JSON.parse(localStorage.getItem("koszty_hist")||"[]");
+    renderHistory();
+  } catch(e){}
+}
+function toggleConfig() {
+  const p=document.getElementById("config-panel");
+  p.style.display=p.style.display==="none"?"block":"none";
+}
+
+// Counts from Sheets
+async function fetchCounts(url) {
+  if(!url) return;
+  try {
+    const r=await fetch(url); const d=await r.json();
+    if(d.counts){ state.catUsage=d.counts; renderCats(); }
+  } catch(e){}
+}
+
+// Types
+function renderTypes() {
+  const g=document.getElementById("types-grid"); g.innerHTML="";
+  TYPES.forEach(t=>{
+    const b=document.createElement("button"); b.className="type-btn";
+    const on=state.activeType===t.id;
+    b.style.cssText=`background:${on?t.color+"0C":"#FAFBFC"};color:${on?t.color:"#94A3B8"};
+      outline:${on?`2px solid ${t.color}`:"1.5px solid #EAEDF0"};
+      box-shadow:${on?`0 3px 12px ${t.color}18`:"none"}`;
+    b.innerHTML=`<div style="font-size:10px;margin-bottom:3px;opacity:0.7;letter-spacing:1px;text-transform:uppercase">${t.who}</div>${t.short}`;
+    b.onclick=()=>{ state.activeType=t.id; updateColor(); renderTypes(); };
+    g.appendChild(b);
+  });
+}
+
+// Categories
+function renderCats() {
+  const w=document.getElementById("cats-wrap"); w.innerHTML="";
+  const color=getColor();
+  const sorted=[...CATEGORIES].sort((a,b)=>(state.catUsage[b.id]||0)-(state.catUsage[a.id]||0));
+  sorted.forEach(cat=>{
+    const b=document.createElement("button"); b.className="cat-pill";
+    const on=state.category===cat.id;
+    b.style.cssText=`background:${on?color:"#F3F4F6"};color:${on?"#fff":"#64748B"};
+      box-shadow:${on?`0 3px 10px ${color}25`:"none"};font-weight:${on?600:500}`;
+    b.innerHTML=`${cat.icon} ${cat.id}`;
+    b.onclick=()=>{ state.category=state.category===cat.id?"":cat.id;
+      document.getElementById("inp-custom-cat").style.display="none"; renderCats(); };
+    w.appendChild(b);
+  });
+  const cb=document.createElement("button"); cb.className="cat-pill";
+  const isCust=state.category==="__custom";
+  cb.style.cssText=`background:${isCust?color:"#F3F4F6"};color:${isCust?"#fff":"#64748B"};font-weight:${isCust?600:500}`;
+  cb.textContent="✏️ własna";
+  cb.onclick=()=>{ state.category=state.category==="__custom"?"":"__custom";
+    const inp=document.getElementById("inp-custom-cat");
+    inp.style.display=state.category==="__custom"?"block":"none";
+    if(state.category==="__custom") inp.focus(); renderCats(); };
+  w.appendChild(cb);
+}
+
+function updateColor() {
+  const c=getColor();
+  document.getElementById("dot").style.color=c;
+  const btn=document.getElementById("btn-submit");
+  btn.style.background=c; btn.style.boxShadow=`0 6px 24px ${c}30`;
+  renderCats();
+}
+
+// Photo
+function handlePhoto(input) {
+  const f=input.files?.[0]; if(!f) return;
+  document.getElementById("photo-btn").style.display="none";
+  document.getElementById("photo-preview").style.display="block";
+  document.getElementById("photo-img").src=URL.createObjectURL(f);
+  const r=new FileReader();
+  r.onload=()=>{ state.photo=r.result.split(",")[1]; };
+  r.readAsDataURL(f);
+}
+function clearPhoto() {
+  state.photo=null; document.getElementById("file-input").value="";
+  document.getElementById("photo-btn").style.display="block";
+  document.getElementById("photo-preview").style.display="none";
+}
+
+// Feedback
+function toast(ok,msg) {
+  const f=document.getElementById("feedback"); f.style.display="block";
+  f.style.background=ok?"#ECFDF5":"#FFF7ED";
+  f.style.border=`1.5px solid ${ok?"#A7F3D0":"#FED7AA"}`;
+  f.style.color=ok?"#059669":"#EA580C"; f.textContent=msg;
+  setTimeout(()=>{f.style.display="none"},4000);
+}
+
+// History
+function renderHistory() {
+  const s=document.getElementById("history-section"), l=document.getElementById("history-list");
+  if(!state.history.length){ s.style.display="none"; return; }
+  s.style.display="block"; l.innerHTML="";
+  state.history.forEach(h=>{
+    const r=document.createElement("div"); r.className="history-row";
+    r.innerHTML=`<div style="min-width:0;display:flex;align-items:center;gap:8px">
+      <span class="tag" style="background:${h.color||"#94A3B8"}">${h.label}</span>
+      <span style="font-size:13px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.category}${h.desc&&h.desc!=="-"?` <span style="color:#A0A7B4">· ${h.desc}</span>`:""}</span>
+    </div>
+    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:${h.color||"#3B82F6"};flex-shrink:0;margin-left:10px">${h.amount.toFixed(2)}</span>`;
+    l.appendChild(r);
+  });
+}
+
+// Send
+async function handleSend() {
+  const url=document.getElementById("inp-url").value.trim();
+  const secret=document.getElementById("inp-secret").value.trim();
+  const amtVal=document.getElementById("inp-amount").value;
+  const desc=document.getElementById("inp-desc").value.trim();
+  const customCat=document.getElementById("inp-custom-cat").value.trim();
+
+  if(!url){ toast(false,"Podaj URL → ⚙️"); return; }
+  if(!secret){ toast(false,"Podaj hasło"); return; }
+  const amt=parseFloat(amtVal);
+  if(!amtVal||isNaN(amt)||amt<=0){ toast(false,"Wpisz kwotę"); return; }
+  const cat=state.category==="__custom"?customCat:state.category;
+  if(!cat){ toast(false,"Wybierz kategorię"); return; }
+
+  const active=getActive(), btn=document.getElementById("btn-submit");
+  btn.disabled=true; btn.style.background="#E2E8F0"; btn.style.boxShadow="none";
+  btn.textContent="wysyłam...";
+
+  const payload = {
+    secret, date:todayStr(), amount:amt, category:cat,
+    rodzaj:active.label, description:desc||"-",
+  };
+  if(state.photo) payload.photo=state.photo;
+
+  try {
+    await fetch(url,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    state.history.unshift({label:active.label,color:active.color,category:cat,desc:desc||"-",amount:amt});
+    if(state.history.length>15) state.history=state.history.slice(0,15);
+    localStorage.setItem("koszty_hist",JSON.stringify(state.history));
+    renderHistory();
+    setTimeout(()=>fetchCounts(url),2000);
+    toast(true,state.photo?"Dodano + paragon ✓":"Dodano ✓");
+    document.getElementById("inp-amount").value="";
+    document.getElementById("inp-desc").value="";
+    document.getElementById("inp-custom-cat").value="";
+    document.getElementById("inp-custom-cat").style.display="none";
+    state.category=""; state.photo=null; clearPhoto(); renderCats();
+    setTimeout(()=>document.getElementById("inp-amount").focus(),150);
+  } catch(e){ toast(false,"Błąd połączenia"); }
+  finally {
+    const c=getColor(); btn.disabled=false;
+    btn.style.background=c; btn.style.boxShadow=`0 6px 24px ${c}30`;
+    btn.textContent="dodaj →";
+  }
+}
+
+document.getElementById("inp-desc").addEventListener("keydown",e=>{if(e.key==="Enter")handleSend()});
+
+// Init
+renderTypes(); renderCats(); loadConfig();
+</script>
+</body>
+</html>
