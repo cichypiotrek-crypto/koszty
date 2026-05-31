@@ -173,9 +173,18 @@
   <!-- Toast -->
   <div id="feedback" class="toast" style="display:none"></div>
 
+  <!-- Ostatni wpis -->
+  <div id="last-entry" style="display:none;margin-top:16px;background:#fff;border-radius:14px;padding:14px 16px;border:1.5px solid #EAEDF0;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:10px;color:#A0A7B4;text-transform:uppercase;letter-spacing:1.5px;font-weight:700">ostatni wpis</span>
+      <button id="btn-delete" onclick="handleDelete()" style="display:none;padding:5px 12px;border-radius:8px;border:none;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">🗑 usuń</button>
+    </div>
+    <div id="last-entry-content" style="font-size:13px;color:#475569;line-height:1.6"></div>
+  </div>
+
   <!-- Link do arkusza -->
   <a href="https://docs.google.com/spreadsheets/d/1d5y6k5QYLpo6Vn7UyMZECHWA-SR9LURkk1slhtZY7x8/edit" target="_blank"
-    style="display:block;margin-top:20px;padding:14px;border-radius:14px;background:#fff;border:1.5px solid #EAEDF0;text-align:center;text-decoration:none;color:#3B82F6;font-weight:600;font-size:14px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+    style="display:block;margin-top:16px;padding:14px;border-radius:14px;background:#fff;border:1.5px solid #EAEDF0;text-align:center;text-decoration:none;color:#3B82F6;font-weight:600;font-size:14px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
     📊 Otwórz arkusz Google Sheets
   </a>
 </div>
@@ -195,7 +204,7 @@ let CATEGORIES = [
   {id:"chemia",icon:"🧴"},{id:"benzyna",icon:"⛽"},{id:"noclegi",icon:"🛏️"},
 ];
 
-let state = { activeType:"piotr_wspolne", category:"", photo:null, catUsage:{} };
+let state = { activeType:"piotr_wspolne", category:"", photo:null, catUsage:{}, lastEntry:null };
 
 function getActive() { return TYPES.find(t=>t.id===state.activeType); }
 function getColor() { return getActive()?.color||"#3B82F6"; }
@@ -254,6 +263,11 @@ async function fetchCounts(url) {
       renderCats();
       localStorage.setItem("koszty_usage",JSON.stringify(state.catUsage));
     }
+    // Ostatni wpis
+    if(d.lastEntry) {
+      state.lastEntry = d.lastEntry;
+      renderLastEntry();
+    }
   } catch(e){ console.error("fetchCounts error:", e); }
 }
 
@@ -274,7 +288,7 @@ function renderTypes() {
       outline:${on?`2px solid ${t.color}`:"1.5px solid #EAEDF0"};
       box-shadow:${on?`0 3px 12px ${t.color}18`:"none"}`;
     b.innerHTML=`<div style="font-size:10px;margin-bottom:3px;opacity:0.7;letter-spacing:1px;text-transform:uppercase">${t.who}</div>${t.short}`;
-    b.onclick=()=>{ state.activeType=t.id; updateColor(); renderTypes(); };
+    b.onclick=()=>{ state.activeType=t.id; updateColor(); renderTypes(); renderLastEntry(); };
     g.appendChild(b);
   });
 }
@@ -336,6 +350,42 @@ function toast(ok,msg) {
   f.style.border=`1.5px solid ${ok?"#A7F3D0":"#FED7AA"}`;
   f.style.color=ok?"#059669":"#EA580C"; f.textContent=msg;
   setTimeout(()=>{f.style.display="none"},4000);
+}
+
+// Ostatni wpis
+function renderLastEntry() {
+  const box=document.getElementById("last-entry");
+  const content=document.getElementById("last-entry-content");
+  const btnDel=document.getElementById("btn-delete");
+  const e=state.lastEntry;
+  if(!e){ box.style.display="none"; return; }
+
+  box.style.display="block";
+  content.innerHTML=`<b style="color:#1a1a1a">${e.rodzaj}</b> · ${e.category} · ${e.amount} zł<br><span style="color:#A0A7B4">${e.date} · ${e.description}</span>`;
+
+  // Pokaż przycisk usuwania tylko jeśli wpis jest Twój
+  const active=getActive();
+  const myName=active.who; // "Piotr" lub "Anna"
+  const isOwn=e.rodzaj && e.rodzaj.indexOf(myName)>-1;
+  btnDel.style.display=isOwn?"block":"none";
+}
+
+async function handleDelete() {
+  const e=state.lastEntry;
+  if(!e||!e.row) return;
+  if(!confirm("Usunąć wpis: "+e.category+" "+e.amount+" zł?")) return;
+
+  const url=document.getElementById("inp-url").value.trim();
+  const secret=document.getElementById("inp-secret").value.trim();
+
+  try {
+    await fetch(url,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({secret:secret, action:"delete", row:e.row})});
+    toast(true,"Usunięto ✓");
+    state.lastEntry=null;
+    document.getElementById("last-entry").style.display="none";
+    setTimeout(()=>fetchCounts(url),2000);
+  } catch(err){ toast(false,"Błąd usuwania"); }
 }
 
 // Send
