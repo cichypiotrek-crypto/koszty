@@ -173,11 +173,11 @@
   <!-- Toast -->
   <div id="feedback" class="toast" style="display:none"></div>
 
-  <!-- History -->
-  <div id="history-section" style="display:none;margin-top:24px">
-    <p style="font-size:10px;color:#C0C6CF;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:10px">ostatnie wpisy</p>
-    <div id="history-list"></div>
-  </div>
+  <!-- Link do arkusza -->
+  <a href="https://docs.google.com/spreadsheets/d/1d5y6k5QYLpo6Vn7UyMZECHWA-SR9LURkk1slhtZY7x8/edit" target="_blank"
+    style="display:block;margin-top:20px;padding:14px;border-radius:14px;background:#fff;border:1.5px solid #EAEDF0;text-align:center;text-decoration:none;color:#3B82F6;font-weight:600;font-size:14px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+    📊 Otwórz arkusz Google Sheets
+  </a>
 </div>
 
 <script>
@@ -195,7 +195,7 @@ let CATEGORIES = [
   {id:"chemia",icon:"🧴"},{id:"benzyna",icon:"⛽"},{id:"noclegi",icon:"🛏️"},
 ];
 
-let state = { activeType:"piotr_wspolne", category:"", photo:null, history:[], catUsage:{} };
+let state = { activeType:"piotr_wspolne", category:"", photo:null, catUsage:{} };
 
 function getActive() { return TYPES.find(t=>t.id===state.activeType); }
 function getColor() { return getActive()?.color||"#3B82F6"; }
@@ -217,10 +217,6 @@ function loadConfig() {
     if(c.url) document.getElementById("inp-url").value=c.url;
     if(c.secret) document.getElementById("inp-secret").value=c.secret;
     if(c.url) fetchCounts(c.url);
-  } catch(e){}
-  try {
-    state.history=JSON.parse(localStorage.getItem("koszty_hist")||"[]");
-    renderHistory();
   } catch(e){}
   // Załaduj zapisane własne kategorie
   try {
@@ -342,22 +338,6 @@ function toast(ok,msg) {
   setTimeout(()=>{f.style.display="none"},4000);
 }
 
-// History
-function renderHistory() {
-  const s=document.getElementById("history-section"), l=document.getElementById("history-list");
-  if(!state.history.length){ s.style.display="none"; return; }
-  s.style.display="block"; l.innerHTML="";
-  state.history.forEach(h=>{
-    const r=document.createElement("div"); r.className="history-row";
-    r.innerHTML=`<div style="min-width:0;display:flex;align-items:center;gap:8px">
-      <span class="tag" style="background:${h.color||"#94A3B8"}">${h.label}</span>
-      <span style="font-size:13px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.category}${h.desc&&h.desc!=="-"?` <span style="color:#A0A7B4">· ${h.desc}</span>`:""}</span>
-    </div>
-    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:${h.color||"#3B82F6"};flex-shrink:0;margin-left:10px">${h.amount.toFixed(2)}</span>`;
-    l.appendChild(r);
-  });
-}
-
 // Send
 async function handleSend() {
   const url=document.getElementById("inp-url").value.trim();
@@ -393,10 +373,6 @@ async function handleSend() {
     // Lokalnie podbij licznik częstości
     state.catUsage[cat.toLowerCase()] = (state.catUsage[cat.toLowerCase()]||0) + 1;
     localStorage.setItem("koszty_usage",JSON.stringify(state.catUsage));
-    state.history.unshift({label:active.label,color:active.color,category:cat,desc:desc||"-",amount:amt});
-    if(state.history.length>15) state.history=state.history.slice(0,15);
-    localStorage.setItem("koszty_hist",JSON.stringify(state.history));
-    renderHistory();
     setTimeout(()=>fetchCounts(url),3000);
     toast(true,state.photo?"Dodano + paragon ✓":"Dodano ✓");
     document.getElementById("inp-amount").value="";
