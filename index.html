@@ -173,13 +173,10 @@
   <!-- Toast -->
   <div id="feedback" class="toast" style="display:none"></div>
 
-  <!-- Ostatni wpis -->
-  <div id="last-entry" style="display:none;margin-top:16px;background:#fff;border-radius:14px;padding:14px 16px;border:1.5px solid #EAEDF0;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="font-size:10px;color:#A0A7B4;text-transform:uppercase;letter-spacing:1.5px;font-weight:700">ostatni wpis</span>
-      <button id="btn-delete" onclick="handleDelete()" style="display:none;padding:5px 12px;border-radius:8px;border:none;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">🗑 usuń</button>
-    </div>
-    <div id="last-entry-content" style="font-size:13px;color:#475569;line-height:1.6"></div>
+  <!-- Ostatnie wpisy -->
+  <div id="last-entries" style="display:none;margin-top:16px">
+    <p style="font-size:10px;color:#A0A7B4;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:8px">ostatnie wpisy</p>
+    <div id="last-entries-list"></div>
   </div>
 
   <!-- Link do arkusza -->
@@ -204,7 +201,7 @@ let CATEGORIES = [
   {id:"chemia",icon:"🧴"},{id:"benzyna",icon:"⛽"},{id:"noclegi",icon:"🛏️"},
 ];
 
-let state = { activeType:"piotr_wspolne", category:"", photo:null, catUsage:{}, lastEntry:null };
+let state = { activeType:"piotr_wspolne", category:"", photo:null, catUsage:{}, lastEntries:[] };
 
 function getActive() { return TYPES.find(t=>t.id===state.activeType); }
 function getColor() { return getActive()?.color||"#3B82F6"; }
@@ -263,10 +260,10 @@ async function fetchCounts(url) {
       renderCats();
       localStorage.setItem("koszty_usage",JSON.stringify(state.catUsage));
     }
-    // Ostatni wpis
-    if(d.lastEntry) {
-      state.lastEntry = d.lastEntry;
-      renderLastEntry();
+    // Ostatnie wpisy
+    if(d.lastEntries) {
+      state.lastEntries = d.lastEntries;
+      renderLastEntries();
     }
   } catch(e){ console.error("fetchCounts error:", e); }
 }
@@ -288,7 +285,7 @@ function renderTypes() {
       outline:${on?`2px solid ${t.color}`:"1.5px solid #EAEDF0"};
       box-shadow:${on?`0 3px 12px ${t.color}18`:"none"}`;
     b.innerHTML=`<div style="font-size:10px;margin-bottom:3px;opacity:0.7;letter-spacing:1px;text-transform:uppercase">${t.who}</div>${t.short}`;
-    b.onclick=()=>{ state.activeType=t.id; updateColor(); renderTypes(); renderLastEntry(); };
+    b.onclick=()=>{ state.activeType=t.id; updateColor(); renderTypes(); };
     g.appendChild(b);
   });
 }
@@ -352,38 +349,33 @@ function toast(ok,msg) {
   setTimeout(()=>{f.style.display="none"},4000);
 }
 
-// Ostatni wpis
-function renderLastEntry() {
-  const box=document.getElementById("last-entry");
-  const content=document.getElementById("last-entry-content");
-  const btnDel=document.getElementById("btn-delete");
-  const e=state.lastEntry;
-  if(!e){ box.style.display="none"; return; }
-
+// Ostatnie wpisy
+function renderLastEntries() {
+  const box=document.getElementById("last-entries");
+  const list=document.getElementById("last-entries-list");
+  if(!state.lastEntries.length){ box.style.display="none"; return; }
   box.style.display="block";
-  content.innerHTML=`<b style="color:#1a1a1a">${e.rodzaj}</b> · ${e.category} · ${e.amount} zł<br><span style="color:#A0A7B4">${e.date} · ${e.description}</span>`;
-
-  // Pokaż przycisk usuwania tylko jeśli wpis jest Twój
-  const active=getActive();
-  const myName=active.who; // "Piotr" lub "Anna"
-  const isOwn=e.rodzaj && e.rodzaj.indexOf(myName)>-1;
-  btnDel.style.display=isOwn?"block":"none";
+  list.innerHTML="";
+  state.lastEntries.forEach(e=>{
+    const row=document.createElement("div");
+    row.style.cssText="display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:12px;padding:10px 14px;margin-bottom:6px;border:1.5px solid #EAEDF0;box-shadow:0 1px 3px rgba(0,0,0,0.03)";
+    row.innerHTML=`<div style="min-width:0;flex:1;overflow:hidden">
+      <div style="font-size:12px;color:#1a1a1a;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.rodzaj} · ${e.category} · <span style="font-family:'JetBrains Mono',monospace">${e.amount} zł</span></div>
+      <div style="font-size:11px;color:#A0A7B4;margin-top:2px">${e.date} · ${e.description}</div>
+    </div>
+    <button onclick="handleDelete(${e.row})" style="margin-left:10px;padding:5px 10px;border-radius:8px;border:none;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;flex-shrink:0">🗑</button>`;
+    list.appendChild(row);
+  });
 }
 
-async function handleDelete() {
-  const e=state.lastEntry;
-  if(!e||!e.row) return;
-  if(!confirm("Usunąć wpis: "+e.category+" "+e.amount+" zł?")) return;
-
+async function handleDelete(row) {
+  if(!confirm("Usunąć ten wpis?")) return;
   const url=document.getElementById("inp-url").value.trim();
   const secret=document.getElementById("inp-secret").value.trim();
-
   try {
     await fetch(url,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({secret:secret, action:"delete", row:e.row})});
+      body:JSON.stringify({secret, action:"delete", row})});
     toast(true,"Usunięto ✓");
-    state.lastEntry=null;
-    document.getElementById("last-entry").style.display="none";
     setTimeout(()=>fetchCounts(url),2000);
   } catch(err){ toast(false,"Błąd usuwania"); }
 }
