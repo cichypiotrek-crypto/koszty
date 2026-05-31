@@ -188,7 +188,7 @@ const TYPES = [
   { id:"ania_dla_piotr", label:"Anna → Piotr", short:"→ Piotr", who:"Anna", color:"#EC4899" },
 ];
 
-const CATEGORIES = [
+let CATEGORIES = [
   {id:"czynsz",icon:"🏠"},{id:"prąd",icon:"⚡"},{id:"internet",icon:"📡"},{id:"port",icon:"📱"},
   {id:"zdrowie",icon:"💊"},{id:"jedzenie zdrowe",icon:"🥗"},{id:"jedzenie śmieci",icon:"🍕"},
   {id:"jedzenie knajpa",icon:"🍽️"},{id:"kultura",icon:"🎭"},{id:"kosmetyki",icon:"💄"},
@@ -222,19 +222,50 @@ function loadConfig() {
     state.history=JSON.parse(localStorage.getItem("koszty_hist")||"[]");
     renderHistory();
   } catch(e){}
+  // Załaduj zapisane własne kategorie
+  try {
+    const saved=JSON.parse(localStorage.getItem("koszty_custom_cats")||"[]");
+    saved.forEach(c=>{
+      if(!CATEGORIES.find(x=>x.id===c)) CATEGORIES.push({id:c,icon:"📌"});
+    });
+  } catch(e){}
+  // Załaduj lokalny backup częstości
+  try {
+    const u=JSON.parse(localStorage.getItem("koszty_usage")||"{}");
+    if(Object.keys(u).length) { state.catUsage=u; renderCats(); }
+  } catch(e){}
 }
 function toggleConfig() {
   const p=document.getElementById("config-panel");
   p.style.display=p.style.display==="none"?"block":"none";
 }
 
-// Counts from Sheets
+// Counts from Sheets + merge custom categories
 async function fetchCounts(url) {
   if(!url) return;
   try {
-    const r=await fetch(url); const d=await r.json();
-    if(d.counts){ state.catUsage=d.counts; renderCats(); }
-  } catch(e){}
+    const r=await fetch(url, {redirect:"follow"});
+    const d=await r.json();
+    if(d.counts){
+      state.catUsage=d.counts;
+      // Dodaj kategorie z Sheets których nie ma w liście
+      Object.keys(d.counts).forEach(cat=>{
+        if(!CATEGORIES.find(x=>x.id.toLowerCase()===cat.toLowerCase())){
+          CATEGORIES.push({id:cat, icon:"📌"});
+          saveCustomCats();
+        }
+      });
+      renderCats();
+      localStorage.setItem("koszty_usage",JSON.stringify(state.catUsage));
+    }
+  } catch(e){ console.error("fetchCounts error:", e); }
+}
+
+// Zapisz własne kategorie do localStorage
+function saveCustomCats() {
+  const defaults=["czynsz","prąd","internet","port","zdrowie","jedzenie zdrowe","jedzenie śmieci","jedzenie knajpa","kultura","kosmetyki","chemia","benzyna","noclegi"];
+  const custom=CATEGORIES.filter(c=>!defaults.includes(c.id)).map(c=>c.id);
+  localStorage.setItem("koszty_custom_cats", JSON.stringify(custom));
 }
 
 // Types
@@ -256,7 +287,7 @@ function renderTypes() {
 function renderCats() {
   const w=document.getElementById("cats-wrap"); w.innerHTML="";
   const color=getColor();
-  const sorted=[...CATEGORIES].sort((a,b)=>(state.catUsage[b.id]||0)-(state.catUsage[a.id]||0));
+  const sorted=[...CATEGORIES].sort((a,b)=>(state.catUsage[b.id.toLowerCase()]||0)-(state.catUsage[a.id.toLowerCase()]||0));
   sorted.forEach(cat=>{
     const b=document.createElement("button"); b.className="cat-pill";
     const on=state.category===cat.id;
@@ -354,11 +385,19 @@ async function handleSend() {
 
   try {
     await fetch(url,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    // Dodaj własną kategorię do listy jeśli nowa
+    if(!CATEGORIES.find(x=>x.id.toLowerCase()===cat.toLowerCase())){
+      CATEGORIES.push({id:cat, icon:"📌"});
+      saveCustomCats();
+    }
+    // Lokalnie podbij licznik częstości
+    state.catUsage[cat.toLowerCase()] = (state.catUsage[cat.toLowerCase()]||0) + 1;
+    localStorage.setItem("koszty_usage",JSON.stringify(state.catUsage));
     state.history.unshift({label:active.label,color:active.color,category:cat,desc:desc||"-",amount:amt});
     if(state.history.length>15) state.history=state.history.slice(0,15);
     localStorage.setItem("koszty_hist",JSON.stringify(state.history));
     renderHistory();
-    setTimeout(()=>fetchCounts(url),2000);
+    setTimeout(()=>fetchCounts(url),3000);
     toast(true,state.photo?"Dodano + paragon ✓":"Dodano ✓");
     document.getElementById("inp-amount").value="";
     document.getElementById("inp-desc").value="";
